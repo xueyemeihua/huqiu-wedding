@@ -1,0 +1,97 @@
+# ==========================================
+# 1. IntelliJ IDEA 专属配置
+# ==========================================
+# 忽略 IDEA 项目配置和缓存目录
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# IDEA 常用插件生成的本地文件 (如 Code With Me)
+.idea_modules/
+*.hprof
+
+# 忽略本地运行配置 (部分团队不需要提交，按需保留)
+# .run/
+# *.run.xml
+
+# ==========================================
+# 2. Java (Spring Boot 后端)
+# ==========================================
+# Maven 编译输出目录
+huqiu-wedding-server/target/
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Maven 本地构建日志
+*.log
+mvnw
+mvnw.cmd
+
+# ==========================================
+# 3. Node.js (Vue3 前端)
+# ==========================================
+# 依赖包目录
+huqiu-wedding-web/node_modules/
+node_modules/
+
+# 前端编译产物
+huqiu-wedding-web/dist/
+dist/
+dist-ssr/
+*.local
+
+# 前端构建缓存 (Vite/Webpack)
+.vite/
+.cache/
+.nuxt/
+.eslintcache
+
+# 前端环境变量文件 (防止密钥泄露)
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# NPM 或 PNPM 的本地缓存及锁文件 (锁文件通常需要提交，视团队规范而定)
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# pnpm-lock.yaml (如果团队允许，建议保留 lock 文件以锁定版本)
+# package-lock.json
+
+# ==========================================
+# 4. 系统与编辑器杂项
+# ==========================================
+# macOS 系统文件
+.DS_Store
+
+# Windows 系统文件
+Thumbs.db
+Desktop.ini
+
+# VS Code 配置 (如果团队混用 IDE)
+.vscode/
+!.vscode/extensions.json
+
+# 日志文件和临时文件
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# 5. 数据库与本地环境配置 (重要)
+# ==========================================
+# 本地 SQL 脚本备份
+*.sql.bak
+
+# 如果 application.yml 中有硬编码的真实密码，建议将其拆分：
+# 使用 application.yml 提交基础配置，使用 application-local.yml 存放密码并忽略。
+# application-local.yml
