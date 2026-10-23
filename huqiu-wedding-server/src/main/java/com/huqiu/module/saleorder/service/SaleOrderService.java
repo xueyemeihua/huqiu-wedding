@@ -184,6 +184,14 @@ public class SaleOrderService {
                 if (order.getOrderType() == 2 && cur != STATUS_RETURNED) {
                     throw new BusinessException("租赁单请先归还");
                 }
+
+                // 如果订单是售卖类型，完成时执行真实出库
+                if (order.getOrderType() == 1) {
+                    for (SaleOrderItem it : items) {
+                        // 扣减总库存和占用库存
+                        inventoryService.deductStock(it.getWarehouseId(), it.getGoodsId(), it.getNum(), order.getOrderNo());
+                    }
+                }
             }
             case STATUS_CANCELLED -> {
                 // 如果是从已开单取消，且未取货，释放库存
