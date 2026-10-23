@@ -16,6 +16,8 @@ import com.huqiu.module.saleorder.entity.SaleOrder;
 import com.huqiu.module.saleorder.entity.SaleOrderItem;
 import com.huqiu.module.saleorder.mapper.SaleOrderItemMapper;
 import com.huqiu.module.saleorder.mapper.SaleOrderMapper;
+import com.huqiu.module.tailororder.entity.TailorOrder;
+import com.huqiu.module.tailororder.mapper.TailorOrderMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,7 @@ public class SaleOrderService {
     private final GoodsMapper goodsMapper;
     private final InventoryService inventoryService;
     private final OrderNoGenerator orderNoGenerator;
+    private final TailorOrderMapper tailorOrderMapper;
 
     /** 创建销售订单（草稿不扣库存，开单自动锁定库存） */
     @Transactional(rollbackFor = Exception.class)
@@ -162,22 +165,25 @@ public class SaleOrderService {
         switch (targetStatus) {
             case STATUS_OPENED -> {
                 if (cur != STATUS_DRAFT) throw new BusinessException("仅草稿状态可提交");
-                // 草稿提交时，锁定库存
                 for (SaleOrderItem it : items) {
                     inventoryService.lockStock(it.getWarehouseId(), it.getGoodsId(), it.getNum(), order.getOrderNo());
                 }
             }
             case STATUS_PICKED -> {
+                // 校验：必须是租赁订单才能取货
+                if (order.getOrderType() != 2) throw new BusinessException("仅租赁订单支持取货操作");
                 if (cur != STATUS_OPENED) throw new BusinessException("仅已开单状态可标记取货");
                 order.setPickupTime(LocalDateTime.now());
             }
             case STATUS_RETURNED -> {
+                // 校验：必须是租赁订单才能归还
+                if (order.getOrderType() != 2) throw new BusinessException("仅租赁订单支持归还操作");
                 if (cur != STATUS_PICKED) throw new BusinessException("仅已取货状态可标记归还");
-                if (order.getOrderType() != 2) throw new BusinessException("非租赁订单无需归还");
                 order.setReturnTime(LocalDateTime.now());
                 releaseAll(items, order);
             }
             case STATUS_DONE -> {
+                // 1. 状态限制
                 if (order.getOrderType() == 1 && cur != STATUS_OPENED && cur != STATUS_PICKED) {
                     throw new BusinessException("售卖单状态不合法");
                 }
@@ -185,16 +191,45 @@ public class SaleOrderService {
                     throw new BusinessException("租赁单请先归还");
                 }
 
-                // 如果订单是售卖类型，完成时执行真实出库
+                // 2. 针对售卖单的业务校验与库存扣减
                 if (order.getOrderType() == 1) {
+                    // 校验关联的改衣单是否全部交付(4)或取消(9)
+                    Long activeTailorCount = tailorOrderMapper.selectCount(
+                            new LambdaQueryWrapper<TailorOrder>()
+                                    .eq(TailorOrder::getSaleOrderId, orderId)
+                                    .notIn(TailorOrder::getStatus, 4, 9) // 4=已交付, 9=已取消
+                    );
+                    if (activeTailorCount > 0) {
+                        throw new BusinessException("该订单存在未完成的改衣单，请等待所有改衣单交付或取消后再完成订单");
+                    }
+
+                    // 校验通过，执行售卖出库逻辑
                     for (SaleOrderItem it : items) {
-                        // 扣减总库存和占用库存
                         inventoryService.deductStock(it.getWarehouseId(), it.getGoodsId(), it.getNum(), order.getOrderNo());
                     }
                 }
             }
             case STATUS_CANCELLED -> {
-                // 如果是从已开单取消，且未取货，释放库存
+                // 1.已取货的订单不允许直接取消（租赁需归还，售卖不支持退单）
+                if (cur == STATUS_PICKED) throw new BusinessException("已取货订单无法直接取消");
+
+                // 2. 状态限制：仅草稿或已开单可取消
+                if (cur != STATUS_DRAFT && cur != STATUS_OPENED) {
+                    throw new BusinessException("仅草稿或已开单状态可取消");
+                }
+
+                // 3. 改衣单限制：存在有效改衣单时不允许取消
+                // 有效改衣单定义：状态不是已交付(4) 且 不是已取消(9)
+                Long activeTailorCount = tailorOrderMapper.selectCount(
+                        new LambdaQueryWrapper<TailorOrder>()
+                                .eq(TailorOrder::getSaleOrderId, orderId)
+                                .notIn(TailorOrder::getStatus, 4, 9)
+                );
+                if (activeTailorCount > 0) {
+                    throw new BusinessException("该订单存在未完成的改衣单，请先处理完所有改衣单后再取消订单");
+                }
+
+                // 4. 库存释放：如果已开单且未取货，释放库存
                 if (cur == STATUS_OPENED && order.getPickupTime() == null) {
                     releaseAll(items, order);
                 }

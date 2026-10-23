@@ -70,28 +70,7 @@ public class TailorOrderService {
         t.setRemark(dto.getRemark());
         t.setStatus(isDraft ? STATUS_DRAFT : STATUS_PENDING);
         tailorOrderMapper.insert(t);
-
-//        if (!isDraft) {
-//            lockInventory(so, t); // 非草稿直接锁定库存
-//        }
         return t.getId();
-    }
-
-    /** 修改草稿 */
-    @Transactional(rollbackFor = Exception.class)
-    public void updateDraft(Long tailorId, TailorOrderCreateDTO dto) {
-        LoginUser user = UserContext.require();
-        TailorOrder t = tailorOrderMapper.selectById(tailorId);
-        if (t == null || !t.getMerchantId().equals(user.getMerchantId())) {
-            throw new BusinessException("改衣单不存在");
-        }
-        if (t.getStatus() != STATUS_DRAFT) {
-            throw new BusinessException("仅草稿状态可修改");
-        }
-        t.setTailorCost(dto.getTailorCost());
-        t.setPlanFinishTime(dto.getPlanFinishTime());
-        t.setRemark(dto.getRemark());
-        tailorOrderMapper.updateById(t);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -109,12 +88,9 @@ public class TailorOrderService {
             throw new BusinessException("改衣单已关闭");
         }
 
-        boolean release = false;
         switch (target) {
             case STATUS_PENDING -> {
                 if (cur != STATUS_DRAFT) throw new BusinessException("仅草稿状态可提交");
-                SaleOrder so = saleOrderMapper.selectById(t.getSaleOrderId());
-//                lockInventory(so, t); // 提交时锁定库存
             }
             case STATUS_MODIFYING -> {
                 if (cur != STATUS_PENDING) throw new BusinessException("状态流转不合法");
@@ -124,41 +100,48 @@ public class TailorOrderService {
             }
             case STATUS_DELIVERED -> {
                 if (cur != STATUS_FINISHED) throw new BusinessException("状态流转不合法");
-                release = true;
             }
             case STATUS_CANCELLED -> {
-                // 草稿取消不释放库存，生效后的取消才需要释放
-                if (cur != STATUS_DRAFT) {
-                    release = true;
-                }
+                // 草稿取消不进行操作
             }
             default -> throw new BusinessException("非法目标状态");
         }
         t.setStatus(target);
         tailorOrderMapper.updateById(t);
-
-        if (release) {
-            SaleOrder so = saleOrderMapper.selectById(t.getSaleOrderId());
-//            releaseInventory(so, t);
-        }
     }
 
-//    // 抽取公共库存操作方法
-//    private void lockInventory(SaleOrder so, TailorOrder t) {
-//        List<SaleOrderItem> items = itemMapper.selectList(new LambdaQueryWrapper<SaleOrderItem>()
-//                .eq(SaleOrderItem::getOrderId, so.getId()));
-//        for (SaleOrderItem it : items) {
-//            inventoryService.lockStock(it.getWarehouseId(), it.getGoodsId(), it.getNum(), t.getTailorNo());
-//        }
-//    }
-//
-//    private void releaseInventory(SaleOrder so, TailorOrder t) {
-//        List<SaleOrderItem> items = itemMapper.selectList(new LambdaQueryWrapper<SaleOrderItem>()
-//                .eq(SaleOrderItem::getOrderId, so.getId()));
-//        for (SaleOrderItem it : items) {
-//            inventoryService.releaseStock(it.getWarehouseId(), it.getGoodsId(), it.getNum(), t.getTailorNo());
-//        }
-//    }
+    @Transactional(rollbackFor = Exception.class)
+    public void updateInfo(Long tailorId, TailorOrderCreateDTO dto) {
+        LoginUser user = UserContext.require();
+        TailorOrder t = tailorOrderMapper.selectById(tailorId);
+        if (t == null || !t.getMerchantId().equals(user.getMerchantId())) {
+            throw new BusinessException("改衣单不存在");
+        }
+        if (!user.isAdmin() && !t.getSaleUserId().equals(user.getUserId())) {
+            throw new BusinessException("无权操作他人改衣单");
+        }
+
+        // 统一状态校验：只有 草稿(0)、待接单(1)、修改中(2) 允许修改
+        if (t.getStatus() != 0 && t.getStatus() != 1 && t.getStatus() != 2) {
+            throw new BusinessException("当前状态不允许修改改衣单信息");
+        }
+
+        t.setTailorCost(dto.getTailorCost());
+        t.setPlanFinishTime(dto.getPlanFinishTime());
+        t.setRemark(dto.getRemark());
+        tailorOrderMapper.updateById(t);
+    }
+
+    /**
+     * 根据销售单ID查询关联的所有改衣单
+     */
+    public List<TailorOrder> listBySaleOrderId(Long saleOrderId) {
+        LoginUser user = UserContext.require();
+        return tailorOrderMapper.selectList(new LambdaQueryWrapper<TailorOrder>()
+                .eq(TailorOrder::getMerchantId, user.getMerchantId())
+                .eq(TailorOrder::getSaleOrderId, saleOrderId)
+                .orderByDesc(TailorOrder::getCreateTime));
+    }
 
     public PageResult<TailorOrder> page(int current, int size, Integer status, String saleOrderNo) {
         LoginUser user = UserContext.require();

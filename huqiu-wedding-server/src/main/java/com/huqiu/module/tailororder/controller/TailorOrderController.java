@@ -10,6 +10,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/tailor-order")
 @RequiredArgsConstructor
@@ -22,10 +24,15 @@ public class TailorOrderController {
         return Result.success(tailorOrderService.create(dto));
     }
 
-    @PutMapping("/update-draft")
-    public Result<Void> updateDraft(@RequestParam Long tailorId, @Valid @RequestBody TailorOrderCreateDTO dto) {
-        tailorOrderService.updateDraft(tailorId, dto);
+    @PutMapping("/update-info")
+    public Result<Void> updateInfo(@RequestParam Long tailorId, @Valid @RequestBody TailorOrderCreateDTO dto) {
+        tailorOrderService.updateInfo(tailorId, dto);
         return Result.success();
+    }
+
+    @GetMapping("/list-by-sale/{saleOrderId}")
+    public Result<List<TailorOrder>> listBySale(@PathVariable Long saleOrderId) {
+        return Result.success(tailorOrderService.listBySaleOrderId(saleOrderId));
     }
 
     @PutMapping("/update-status")
