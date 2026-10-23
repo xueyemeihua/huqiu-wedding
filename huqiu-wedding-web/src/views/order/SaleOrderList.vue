@@ -174,6 +174,8 @@
         <!-- 增加限制：仅已开单状态允许在这里新增 -->
         <el-button v-if="currentSaleOrder?.status === 1" size="small" type="success" @click="enterCreateMode">+ 新增改衣单</el-button>
       </div>
+      <!-- 判断如果没有改衣记录，展示空状态 -->
+      <el-empty v-if="relatedTailors.length === 0" description="该订单暂无历史改衣记录" :image-size="100" />
 
       <el-timeline>
         <el-timeline-item v-for="t in relatedTailors" :key="t.id" :timestamp="t.createTime" placement="top"
