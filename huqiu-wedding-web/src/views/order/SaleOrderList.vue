@@ -275,8 +275,12 @@ async function openTailorDrawer(saleRow) {
   currentSaleOrder.value = saleRow
   tailorDrawerVisible.value = true
   editingTailorId.value = null
+
+  // 查询该订单下所有改衣单
   relatedTailors.value = await listTailorBySaleId(saleRow.id)
-  if (relatedTailors.value.length === 0) {
+
+  // 必须同时满足【订单状态为1(已开单)】且【无历史改衣单】才进入新建模式
+  if (saleRow.status === 1 && relatedTailors.value.length === 0) {
     enterCreateMode()
   } else {
     isCreatingTailor.value = false
