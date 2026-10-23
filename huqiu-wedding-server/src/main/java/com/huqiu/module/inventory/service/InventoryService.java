@@ -87,6 +87,24 @@ public class InventoryService {
         writeLog(merchantId, warehouseId, goodsId, changeType, num, null, remark);
     }
 
+    /** 售卖订单完成，扣减总库存和占用库存 */
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+    public void deductStock(Long warehouseId, Long goodsId, int num, String orderNo) {
+        Long merchantId = UserContext.require().getMerchantId();
+        Inventory inv = inventoryMapper.selectOne(new LambdaQueryWrapper<Inventory>()
+                .eq(Inventory::getMerchantId, merchantId)
+                .eq(Inventory::getWarehouseId, warehouseId)
+                .eq(Inventory::getGoodsId, goodsId));
+
+        if (inv == null) throw new BusinessException("库存记录不存在");
+
+        int rows = inventoryMapper.deductStock(inv.getId(), num);
+        if (rows == 0) throw new BusinessException("库存扣减失败，占用库存不足");
+
+        // 记录流水，change_type = 2 代表出库
+        writeLog(merchantId, warehouseId, goodsId, 2, -num, orderNo, "售卖完成出库");
+    }
+
     @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public void importExcel(MultipartFile file) {
         Long merchantId = UserContext.require().getMerchantId();
