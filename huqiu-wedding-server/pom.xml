@@ -89,6 +89,7 @@
     </dependencies>
 
     <build>
+        <finalName>huqiu-wedding-server</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
